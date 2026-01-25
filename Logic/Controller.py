@@ -1,0 +1,208 @@
+#controller: handles the data who´s sent to the repository
+
+#calls to libraries
+import re
+import bcrypt
+from enum import Enum
+from datetime import datetime
+from typing import Dict, Optional, Any, Tuple
+import csv
+import secrets
+
+#connecting with other filesO
+from DatabaseFunctions import Repository
+from Services import PDFCreator
+from Services import EmailService
+
+class Controller:
+    def __init__(self):
+        self._repository=Repository.Repository()
+        self._pdfcreator=PDFCreator.PdfCreator()
+        self._emailservice=EmailService.EmailService()
+
+#--------------------------data validater-----------------------------
+#---------------------(for the string inputs)-------------------------
+
+    #checks only numbers (no commas, no symbols)
+    def validate_document(self, document: str) -> bool:
+        document=document.strip()
+        
+        #checks only numbers with a len between 7 and 10
+        return re.search(r"\D", document) is None and re.match(r"^\d{7,10}$", document) is not None
+         
+    #checks no numbers or symbols in that
+    def validate_name(self, name: str) -> bool:
+        name= name.strip().lower()
+        return re.match(r"^[a-záéíóúÁÉÍÓÚñ\s]+$", name) is not None
+    
+    #checks pattern -> letters/numbers + @ + letters + . + letters
+    def validate_email(self, email: str) -> bool:
+        email= email.lower().strip()
+        return re.match(r"^[A-Za-z0-9._%+-ñ]+@[A-Za-z0-9.-ñ]+\.[A-Za-z]{2,}$", email) is not None
+
+    #calls all functions    
+    def validate_all_data(self, user: Dict[str, Any]) -> Dict[str, Any]:
+        errors={}
+        if not self.validate_document(user["document"]):
+            errors["document"]=ValidationResults.invalid
+        if not self.validate_name(user["name"]):
+            errors["name"]=ValidationResults.invalid
+        if not self.validate_email(user["email"]):
+            errors["email"]=ValidationResults.invalid
+        return errors
+
+#-------------------------------  set  ------------------------------
+    #purchase date
+    def set_date(self, user: Dict[str, Any]):
+        date=datetime.now().strftime("%d/%m/%Y")
+        user["date"] = date        
+    #to barcode
+    def set_token(self, user: Dict[str, Any]):
+        user["token"]=secrets.token_urlsafe(16)
+
+    def set_admin(self, admin_credentials: Dict[str, Any]) -> bool:
+        admin_credentials["password"] = bcrypt.hashpw(password=admin_credentials["password"].encode(), salt= bcrypt.gensalt())
+        with self._repository as connection:
+            state= connection.set_admin(admin_credentials)
+        return state
+   
+#-------------------------------   get  ------------------------------ 
+    def get_user_by_document(self, document: str):
+        with self._repository as connection:
+            user = connection.search_user(document)
+        return user
+
+    def get_total_gains(self) -> Dict[str]:
+        with self._repository as connection:
+            gains=connection.get_gains()
+        return gains
+#-------------------------- user transactions -----------------------------
+
+    def register_user(self, user: Dict[str]) -> Optional[Dict[str, Any]]:
+        data_errors = self.validate_all_data(user)
+
+        if not data_errors:
+            self.set_date(user)
+            self.set_token(user)
+            with self._repository as connection:
+                #the insert_user function returns false if it found an used document
+                if not connection.insert_user(user):
+                    data_errors["document used"] = ValidationResults.used  
+
+        return data_errors
+
+#-----------------------ticket options-------------------------------------        
+    def generate_temp_ticket(self, user: Dict[str])-> Tuple[bool, str]:
+        state_and_path = self._pdfcreator.save_temp_ticket(user)
+        return state_and_path
+
+    def send_ticket_to_email(self, user: Dict[str])-> Tuple[bool, str]:
+        if not user["token"]:
+            return (False, "token not created")
+
+        state_and_path= self.generate_temp_ticket(user)
+        if state_and_path[0]:
+            state=self._emailservice.email_connection_and_sending(user=user, ticket_buffer=state_and_path[1])
+            return state
+        else: return state_and_path
+        
+
+    def generate_permanent_ticket(self, user: Dict[str])-> Tuple[bool, str]:
+        state_and_path = self._pdfcreator.save_ticket_permanently(user)
+        return state_and_path
+
+    def check_scanned_token(self, token: str) -> bool:
+        with self._repository as connection:
+            is_valid=connection.validate_user(token)
+        return is_valid
+
+
+#---------------------------asset options-------------------------------------------
+    def buy_accessory(self, asset_data: Dict[str, Any])-> bool:
+        with self._repository as connection:
+            transaction_succesfull= connection.buy_accesory(asset_data)
+        return transaction_succesfull
+   
+    def get_lockers(self) -> Dict[str]:
+        with self._repository as connection:
+            lockers=connection.get_lockers()
+        return lockers
+
+#----------------------------admin general options-----------------------------------
+    #save all users in one csv file
+    def export_all_users(self) -> bool:
+        #save all users in one variable
+        with self._repository as connection:
+            all_users = connection.show_all_users()
+        
+        if not all_users:
+            return None
+        
+        try:
+            file_route="data.csv"
+            with open(file_route, "w", newline="", encoding="utf-8") as csv_connection:
+                csv_cursor=csv.writer(csv_connection, delimiter=";")
+                #titles
+                csv_cursor.writerow(["id", "cedula", "nombre", "correo", "edad", "validado", "fecha", "token", "fase"])
+                #data insertion
+                for user in all_users:
+                    csv_cursor.writerow(user)
+            return True
+        except (PermissionError, OSError, UnicodeDecodeError):
+            return False
+       
+    def check_admin_pin(self, admin_pin: str)-> bool:
+        with self._repository as connection:
+            password_hashed=connection.get_hashed_admin_password()
+
+        is_password_correct=bcrypt.checkpw(admin_pin.encode(), password_hashed)
+        return is_password_correct
+
+    def delete_all_users(self)-> bool:
+        with self._repository as connection:
+            delete_state= connection.delete_all_users()
+        return delete_state
+    
+    def reset_all_users(self) -> bool:
+        with self._repository as connection:
+            reset_state= connection.reset_all_users()
+        return reset_state
+
+#----------------------------ADMIN USER OPTIONS-----------------------------------
+    def reset_one_user(self, document: str) -> bool:
+        with self._repository as connection:
+            reset_state=connection.reset_user(document)
+        return reset_state
+    
+    def delete_one_user(self, document: str) -> bool:
+        with self._repository as connection:
+            delete_state=connection.delete_user(document)
+        return delete_state
+
+
+
+#------------------------------ DATA STATES-------------------------------    
+class ValidationResults(Enum):
+    invalid=1
+    used=2
+
+
+def testing_controller():
+    user_1 = {
+    "document": "28654123",
+    "name": "Ricardo Jose Olarte Rincon",
+    "email": "impresionespitaa@gmail.com",
+    "age": 21,
+    "validated": 0,
+    "date": "",
+    "token": "",
+    "phase_id": 1
+}
+
+    controlador=Controller()
+    controlador.register_user(user_1)
+    controlador.export_all_users()
+    
+    
+
+testing_controller()
