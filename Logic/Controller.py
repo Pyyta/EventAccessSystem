@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Dict, Optional, Any, Tuple
 import csv
 import secrets
+import random
 
 #connecting with other filesO
 from DatabaseFunctions import Repository
@@ -76,6 +77,14 @@ class Controller:
         with self._repository as connection:
             gains=connection.get_gains()
         return gains
+    
+    def get_admin_email(self) -> str:
+        with self._repository as connection:
+            admin_email=connection.get_admin_email()
+        if admin_email: return admin_email[0]
+        else: return None
+
+
 #-------------------------- user transactions -----------------------------
 
     def register_user(self, user: Dict[str]) -> Optional[Dict[str, Any]]:
@@ -88,6 +97,7 @@ class Controller:
                 #the insert_user function returns false if it found an used document
                 if not connection.insert_user(user):
                     data_errors["document used"] = ValidationResults.used  
+                
 
         return data_errors
 
@@ -102,7 +112,7 @@ class Controller:
 
         state_and_path= self.generate_temp_ticket(user)
         if state_and_path[0]:
-            state=self._emailservice.email_connection_and_sending(user=user, ticket_buffer=state_and_path[1])
+            state=self._emailservice.ticket_email_setter(user=user, ticket_buffer=state_and_path[1])
             return state
         else: return state_and_path
         
@@ -129,7 +139,14 @@ class Controller:
         return lockers
 
 #----------------------------admin general options-----------------------------------
-    #save all users in one csv file
+    def password_recovery(self):
+        admin_email=self.get_admin_email()
+        if admin_email:
+            admin_temp_pin=random.randint(10000, 99999)
+            state=self._emailservice.admin_password_reset(admin_email, admin_temp_pin)
+            return state
+        else: return admin_email
+
     def export_all_users(self) -> bool:
         #save all users in one variable
         with self._repository as connection:
@@ -200,8 +217,7 @@ def testing_controller():
 }
 
     controlador=Controller()
-    controlador.register_user(user_1)
-    controlador.export_all_users()
+    
     
     
 

@@ -106,7 +106,17 @@ class Repository:
         cursor.execute("SELECT password FROM admin WHERE id = 1")
         password_hashed=cursor.fetchone()
         return password_hashed[0]
+    
+    def update_password(self, new_password):
+        cursor=self.__conn.cursor()
+        cursor.execute("UPDATE admin SET password = (?) WHERE admin = 1", (new_password, ))
+        self.__conn.commit()
+        return True
 
+    def get_admin_email(self):
+        cursor=self.__conn.cursor()
+        cursor.execute("SELECT email FROM admin WHERE id = 1")
+        return cursor.fetchone()
 #-------------------------------admin general options--------------------------------   
     def reset_all_users(self):
         cursor=self.__conn.cursor()

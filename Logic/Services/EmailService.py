@@ -11,8 +11,8 @@ class EmailService:
         self.email=EmailMessage()
         self.host_email= os.getenv("HOST_EMAIL")
         self.host_password= os.getenv("HOST_PASSWORD")
-    
-    def email_setter(self, user):
+            
+    def ticket_email_setter(self, user, ticket_buffer):
         first_name=user["name"].split()[0]
         self.email["From"]="noreply.nynya@gmail.com"
         self.email["To"] = user["email"]
@@ -114,6 +114,31 @@ class EmailService:
                         </html>
                     """
         self.email.add_alternative(html_content, subtype="html")
+        ticket_attached = self.add_ticket_to_email(ticket_buffer, user)
+        if ticket_attached[0]: 
+            email_state = self.email_connection_and_sending()
+            return email_state
+        else: return ticket_attached
+        
+    def admin_password_reset(self, admin_email, reset_pin):
+        self.email["From"]="noreply.nynya@gmail.com"
+        self.email["To"] = admin_email
+        self.email["Subject"]="Pin de cinco digitos para la recuperación de contraseña"
+        message=f"""Hola,
+
+                    Se ha solicitado un cambio de contraseña para la cuenta de administrador,
+                    debido a que la contraseña fue olvidada.
+
+                    Para continuar con el proceso, utiliza el siguiente PIN de verificación:
+
+                    PIN de administrador: {reset_pin}
+
+                    Si no realizaste esta solicitud, ignora este correo o comunícate con el
+                    soporte del sistema de inmediato.
+
+                    Este es un mensaje automático, por favor no respondas a este correo."""
+        self.email.set_content(message)
+        self.email_connection_and_sending()
     
     def add_ticket_to_email(self, ticket_buffer, user):
         try:
@@ -130,24 +155,20 @@ class EmailService:
             return (False, f"Error processing buffer: {str(e)}")
 
     
-    def email_connection_and_sending(self, ticket_buffer, user):
-        self.email_setter(user)
-        if self.add_ticket_to_email(ticket_buffer, user)[0]:
-            try:
-                with smtplib.SMTP_SSL(host="smtp.gmail.com", port=465) as server:
-                    server.login(user=self.host_email, password=self.host_password)
-                    server.send_message(self.email)
-                return (True, "Success")
-            except smtplib.SMTPRecipientsRefused:
-                return (False, "Email Not Found")
-            except socket.gaierror:
-                return (False, "Connection Failed")
-            except socket.timeout:
-                return (False, "Timeout error")
-            except smtplib.SMTPAuthenticationError:
-                return (False, "Host authentication error")
-        else: 
-            return (False, f"Error processing buffer")
+    def email_connection_and_sending(self):
+        try:
+            with smtplib.SMTP_SSL(host="smtp.gmail.com", port=465) as server:
+                server.login(user=self.host_email, password=self.host_password)
+                server.send_message(self.email)
+            return (True, "Success")
+        except smtplib.SMTPRecipientsRefused:
+            return (False, "Email Not Found")
+        except socket.gaierror:
+            return (False, "Connection Failed")
+        except socket.timeout:
+            return (False, "Timeout error")
+        except smtplib.SMTPAuthenticationError:
+            return (False, "Host authentication error")
 
 
 
