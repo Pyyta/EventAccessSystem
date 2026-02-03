@@ -5,12 +5,12 @@ import sqlite3 as sq
 import os
 
 class Repository:
-    def __enter__(self):
+    def __init__(self):
         db_path = os.path.join(os.path.dirname(__file__), "Database.db")
         self.__conn = sq.connect(db_path)
         cursor=self.__conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;") 
-        return self
+        #return self
 
 #-------------------------------table creation & seeding-----------------------------
     def create_tables(self):
@@ -19,7 +19,8 @@ class Repository:
         cursor.execute("""CREATE TABLE IF NOT EXISTS admin(
                             id INTEGER NOT NULL PRIMARY KEY,
                             email TEXT NOT NULL,
-                            password TEXT NOT NULL)""")
+                            password TEXT NOT NULL,
+                            temp_recovery_password TEXT)""")
         #Users table
         cursor.execute("""CREATE TABLE IF NOT EXISTS Users(
                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -59,6 +60,7 @@ class Repository:
                        price INT NOT NULL
                        )""")
         self.__conn.commit()
+        return True
 
     def seeding_assets(self):
         cursor=self.__conn.cursor()
@@ -95,11 +97,17 @@ class Repository:
             return False
 
 #----------------------------------------admin---------------------------------------    
+    def update_admin(self, admin_credentials):
+        cursor=self.__conn.cursor()
+        cursor.execute("UPDATE admin SET email = (?), password= (?) WHERE id = 1", (admin_credentials["email"], admin_credentials["password"]))
+        self.__conn.commit()
+        return cursor.rowcount == 1
+
     def set_admin(self, admin_credentials):
         cursor=self.__conn.cursor()
         cursor.execute("INSERT INTO admin(email, password) VALUES (?, ?)", (admin_credentials["email"], admin_credentials["password"]))
         self.__conn.commit()
-        return True
+        return cursor.rowcount == 1
             
     def get_hashed_admin_password(self):
         cursor=self.__conn.cursor()       
@@ -111,7 +119,7 @@ class Repository:
         cursor=self.__conn.cursor()
         cursor.execute("UPDATE admin SET password = (?) WHERE admin = 1", (new_password, ))
         self.__conn.commit()
-        return True
+        return cursor.rowcount ==1
 
     def get_admin_email(self):
         cursor=self.__conn.cursor()
@@ -122,7 +130,7 @@ class Repository:
         cursor=self.__conn.cursor()
         cursor.execute("UPDATE Users SET validated=0")
         self.__conn.commit()
-        return True
+        return cursor.rowcount ==1
     
     def delete_all_users(self):
         cursor=self.__conn.cursor()
@@ -267,10 +275,15 @@ class Repository:
         }
         return total
          
+    def aux(self):
+        cursor=self.__conn.cursor()
+        cursor.execute("DROP TABLE admin")
+        self.__conn.commit()
+
 #---------------------------------other----------------------------------   
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.__conn:
             if exc_type:
                 self.__conn.rollback()    
             self.__conn.close()
-        
+

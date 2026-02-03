@@ -3,12 +3,13 @@
 #calls to libraries
 import re
 import bcrypt
-from enum import Enum
-from datetime import datetime
-from typing import Dict, Optional, Any, Tuple
 import csv
 import secrets
 import random
+
+from enum import Enum
+from datetime import datetime
+from typing import Dict, Optional, Any, Tuple
 
 #connecting with other filesO
 from DatabaseFunctions import Repository
@@ -97,8 +98,6 @@ class Controller:
                 #the insert_user function returns false if it found an used document
                 if not connection.insert_user(user):
                     data_errors["document used"] = ValidationResults.used  
-                
-
         return data_errors
 
 #-----------------------ticket options-------------------------------------        
@@ -116,7 +115,6 @@ class Controller:
             return state
         else: return state_and_path
         
-
     def generate_permanent_ticket(self, user: Dict[str])-> Tuple[bool, str]:
         state_and_path = self._pdfcreator.save_ticket_permanently(user)
         return state_and_path
@@ -139,14 +137,15 @@ class Controller:
         return lockers
 
 #----------------------------admin general options-----------------------------------
-    def password_recovery(self):
+    def admin_password_recovery(self) -> Tuple[bool, str]:
         admin_email=self.get_admin_email()
         if admin_email:
             admin_temp_pin=random.randint(10000, 99999)
             state=self._emailservice.admin_password_reset(admin_email, admin_temp_pin)
             return state
-        else: return admin_email
+        else: return (False, "Email not found")
 
+    
     def export_all_users(self) -> bool:
         #save all users in one variable
         with self._repository as connection:
@@ -217,7 +216,7 @@ def testing_controller():
 }
 
     controlador=Controller()
-    
+    print(controlador.admin_password_recovery())
     
     
 

@@ -138,7 +138,8 @@ class EmailService:
 
                     Este es un mensaje automático, por favor no respondas a este correo."""
         self.email.set_content(message)
-        self.email_connection_and_sending()
+        if self.email_connection_and_sending()[0]:
+            return (True, "Email sent")
     
     def add_ticket_to_email(self, ticket_buffer, user):
         try:
