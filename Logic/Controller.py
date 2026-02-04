@@ -137,15 +137,37 @@ class Controller:
         return lockers
 
 #----------------------------admin general options-----------------------------------
-    def admin_password_recovery(self) -> Tuple[bool, str]:
-        admin_email=self.get_admin_email()
-        if admin_email:
-            admin_temp_pin=random.randint(10000, 99999)
-            state=self._emailservice.admin_password_reset(admin_email, admin_temp_pin)
-            return state
-        else: return (False, "Email not found")
 
+    def get_attemps(self):
+        with self._repository as connection:
+            attemps= connection.get_password_recovery_attemps()
+        return attemps
+
+    def add_attemp(self):
+        with self._repository as connection:
+            state= connection.add_password_recovery_attemp()
+        return state
+
+    def admin_password_recovery(self) -> Tuple[bool, str]:
+        admin_temp_pin= secrets.randbelow(90000)+10000
+        email_sending_status=self.send_recovery_email(admin_temp_pin)
+        if email_sending_status[0]:
+            hashed_pin= bcrypt.hashpw(password= admin_temp_pin, salt= bcrypt.gensalt())
+            self.save_temp_admin_pin(hashed_pin)
+            return (True, "email sent")
+        else: return email_sending_status
+
+
+    def send_recovery_email(self, admin_temp_pin):
+        admin_email=self.get_admin_email()
+        state=self._emailservice.admin_password_reset(admin_email, admin_temp_pin)
+        return state
     
+    def save_temp_admin_pin(self, temp_pin):
+        with self._repository as connection:
+            status= connection.save_admin_temp_pin(temp_pin)
+        return status
+
     def export_all_users(self) -> bool:
         #save all users in one variable
         with self._repository as connection:

@@ -5,12 +5,12 @@ import sqlite3 as sq
 import os
 
 class Repository:
-    def __init__(self):
+    def __enter__(self):
         db_path = os.path.join(os.path.dirname(__file__), "Database.db")
         self.__conn = sq.connect(db_path)
         cursor=self.__conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;") 
-        #return self
+        return self
 
 #-------------------------------table creation & seeding-----------------------------
     def create_tables(self):
@@ -20,7 +20,8 @@ class Repository:
                             id INTEGER NOT NULL PRIMARY KEY,
                             email TEXT NOT NULL,
                             password TEXT NOT NULL,
-                            temp_recovery_password TEXT)""")
+                            temp_recovery_password TEXT,
+                            attemps INTEGER NOT NULL)""")
         #Users table
         cursor.execute("""CREATE TABLE IF NOT EXISTS Users(
                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +106,7 @@ class Repository:
 
     def set_admin(self, admin_credentials):
         cursor=self.__conn.cursor()
-        cursor.execute("INSERT INTO admin(email, password) VALUES (?, ?)", (admin_credentials["email"], admin_credentials["password"]))
+        cursor.execute("INSERT INTO admin(email, password, attemps) VALUES (?, ?, ?)", (admin_credentials["email"], admin_credentials["password"], 0))
         self.__conn.commit()
         return cursor.rowcount == 1
             
@@ -115,17 +116,41 @@ class Repository:
         password_hashed=cursor.fetchone()
         return password_hashed[0]
     
-    def update_password(self, new_password):
+    def save_admin_temp_pin(self, temp_pin):
+        cursor=self.__conn.cursor()
+        cursor.execute("UPDATE admin SET temp_recovery_password = (?) WHERE id = 1 ", (temp_pin, ))    
+        self.__conn.commit()
+        return cursor.rowcount == 1
+    
+    def clear_admin_temp_pin(self):
+        cursor=self.__conn.cursor()
+        cursor.execute("UPDATE admin SET temp_recovery_password = (?) WHERE id = 1 ", (None, ))    
+        self.__conn.commit()
+        
+    def update_admin_password(self, new_password):
         cursor=self.__conn.cursor()
         cursor.execute("UPDATE admin SET password = (?) WHERE admin = 1", (new_password, ))
         self.__conn.commit()
-        return cursor.rowcount ==1
+        return cursor.rowcount == 1
+        
+    def get_password_recovery_attemps(self):
+        cursor=self.__conn.cursor()
+        cursor.execute("SELECT attemps FROM admin WHERE id = 1")
+        curr_attemps= int(cursor.fetchone()[0])
+        return curr_attemps
+
+    def add_password_recovery_attemp(self):
+        cursor=self.__conn.cursor()
+        curr_attemps= self.get_password_recovery_attemps()
+        cursor.execute("UPDATE admin SET attemps = (?) WHERE admin = 1", (curr_attemps))
+        return cursor.rowcount == 1
 
     def get_admin_email(self):
         cursor=self.__conn.cursor()
         cursor.execute("SELECT email FROM admin WHERE id = 1")
         return cursor.fetchone()
-#-------------------------------admin general options--------------------------------   
+
+#------------------------------- general options--------------------------------   
     def reset_all_users(self):
         cursor=self.__conn.cursor()
         cursor.execute("UPDATE Users SET validated=0")
@@ -153,7 +178,7 @@ class Repository:
         cursor.execute("SELECT * FROM Users")
         return cursor.fetchall()
 
-#-------------------------------admin user options--------------------------------  
+#------------------------------- user options--------------------------------  
     def delete_user(self, document):
         cursor = self.__conn.cursor()
         
@@ -277,8 +302,8 @@ class Repository:
          
     def aux(self):
         cursor=self.__conn.cursor()
-        cursor.execute("DROP TABLE admin")
-        self.__conn.commit()
+        cursor.execute("SELECT * FROM admin")
+        return cursor.fetchone()
 
 #---------------------------------other----------------------------------   
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -286,4 +311,6 @@ class Repository:
             if exc_type:
                 self.__conn.rollback()    
             self.__conn.close()
+
+
 
