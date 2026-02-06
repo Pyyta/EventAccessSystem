@@ -8,8 +8,8 @@ class Repository:
     def __enter__(self):
         db_path = os.path.join(os.path.dirname(__file__), "Database.db")
         self.__conn = sq.connect(db_path)
-        cursor=self.__conn.cursor()
-        cursor.execute("PRAGMA foreign_keys = ON;") 
+        self.cursor=self.__conn.cursor()
+        self.cursor.execute("PRAGMA foreign_keys = ON;") 
         return self
 
 #-------------------------------table creation & seeding-----------------------------
@@ -122,16 +122,22 @@ class Repository:
         self.__conn.commit()
         return cursor.rowcount == 1
     
+    def get_admin_temp_pin(self):
+        cursor=self.__conn.cursor()
+        cursor.execute("SELECT temp_recovery_password FROM admin WHERE id = 1")   
+        return cursor.fetchone()
+
+    def update_admin_password(self, new_password):
+        cursor=self.__conn.cursor()
+        cursor.execute("UPDATE admin SET password = (?) WHERE id = 1 ", (new_password, ))    
+        self.__conn.commit()
+        return cursor.rowcount == 1
+
     def clear_admin_temp_pin(self):
         cursor=self.__conn.cursor()
         cursor.execute("UPDATE admin SET temp_recovery_password = (?) WHERE id = 1 ", (None, ))    
         self.__conn.commit()
         
-    def update_admin_password(self, new_password):
-        cursor=self.__conn.cursor()
-        cursor.execute("UPDATE admin SET password = (?) WHERE admin = 1", (new_password, ))
-        self.__conn.commit()
-        return cursor.rowcount == 1
         
     def get_password_recovery_attemps(self):
         cursor=self.__conn.cursor()
@@ -142,7 +148,7 @@ class Repository:
     def add_password_recovery_attemp(self):
         cursor=self.__conn.cursor()
         curr_attemps= self.get_password_recovery_attemps()
-        cursor.execute("UPDATE admin SET attemps = (?) WHERE admin = 1", (curr_attemps))
+        cursor.execute("UPDATE admin SET attemps = (?) WHERE admin = 1", (curr_attemps, ))
         return cursor.rowcount == 1
 
     def get_admin_email(self):
@@ -300,11 +306,6 @@ class Repository:
         }
         return total
          
-    def aux(self):
-        cursor=self.__conn.cursor()
-        cursor.execute("SELECT * FROM admin")
-        return cursor.fetchone()
-
 #---------------------------------other----------------------------------   
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.__conn:

@@ -5,7 +5,6 @@ import re
 import bcrypt
 import csv
 import secrets
-import random
 
 from enum import Enum
 from datetime import datetime
@@ -53,6 +52,7 @@ class Controller:
             errors["email"]=ValidationResults.invalid
         return errors
 
+
 #-------------------------------  set  ------------------------------
     #purchase date
     def set_date(self, user: Dict[str, Any]):
@@ -87,7 +87,6 @@ class Controller:
 
 
 #-------------------------- user transactions -----------------------------
-
     def register_user(self, user: Dict[str]) -> Optional[Dict[str, Any]]:
         data_errors = self.validate_all_data(user)
 
@@ -100,6 +99,15 @@ class Controller:
                     data_errors["document used"] = ValidationResults.used  
         return data_errors
 
+    def reset_one_user(self, document: str) -> bool:
+        with self._repository as connection:
+            reset_state=connection.reset_user(document)
+        return reset_state
+    
+    def delete_one_user(self, document: str) -> bool:
+        with self._repository as connection:
+            delete_state=connection.delete_user(document)
+        return delete_state
 #-----------------------ticket options-------------------------------------        
     def generate_temp_ticket(self, user: Dict[str])-> Tuple[bool, str]:
         state_and_path = self._pdfcreator.save_temp_ticket(user)
@@ -138,12 +146,16 @@ class Controller:
 
 #----------------------------admin general options-----------------------------------
 
-    def get_attemps(self):
+    def get_attemps(self) -> int:
         with self._repository as connection:
             attemps= connection.get_password_recovery_attemps()
         return attemps
 
-    def add_attemp(self):
+    def has_attemps(self) -> Tuple[bool, str]:
+        attemps=int(self.get_attemps())
+        return (True, f"{5-attemps} remaining ") if attemps <= 5 else (False, "no attemps remaining")
+
+    def add_attemp(self) -> bool:
         with self._repository as connection:
             state= connection.add_password_recovery_attemp()
         return state
@@ -157,16 +169,35 @@ class Controller:
             return (True, "email sent")
         else: return email_sending_status
 
+    def get_recovery_pin(self) -> bool:
+        with self._repository as connection:
+            temp_pin=connection.get_admin_temp_pin()
+        return temp_pin
+    
+    def update_admin_password(self, new_password: str):
+        with self._repository as connection:
+            update_state=connection.update_admin_password(new_password)
+            temp_password_state=connection.clear_admin_temp_pin()
+        return update_state and temp_password_state
+    
+    def check_recovery_pin(self, temp_pin_attemp: str) -> Tuple[bool, str]:
+        recovery_pin= self.get_recovery_pin()
+        if recovery_pin:
+            is_valid= bcrypt.checkpw(temp_pin_attemp.encode(), recovery_pin)
+            return (True, "Correct") if is_valid else (True, "Incorrect")
+        else: return (None, "ERROR, temporal pin not found")
 
-    def send_recovery_email(self, admin_temp_pin):
+    def send_recovery_email(self, admin_temp_pin: str) -> bool:
         admin_email=self.get_admin_email()
         state=self._emailservice.admin_password_reset(admin_email, admin_temp_pin)
         return state
     
-    def save_temp_admin_pin(self, temp_pin):
+    def save_temp_admin_pin(self, temp_pin: str) -> bool:
         with self._repository as connection:
             status= connection.save_admin_temp_pin(temp_pin)
         return status
+
+#------------------------------- general transactions ------------------------------
 
     def export_all_users(self) -> bool:
         #save all users in one variable
@@ -205,17 +236,8 @@ class Controller:
         with self._repository as connection:
             reset_state= connection.reset_all_users()
         return reset_state
-
-#----------------------------ADMIN USER OPTIONS-----------------------------------
-    def reset_one_user(self, document: str) -> bool:
-        with self._repository as connection:
-            reset_state=connection.reset_user(document)
-        return reset_state
     
-    def delete_one_user(self, document: str) -> bool:
-        with self._repository as connection:
-            delete_state=connection.delete_user(document)
-        return delete_state
+
 
 
 
