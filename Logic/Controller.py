@@ -52,7 +52,8 @@ class Controller:
             errors["email"]=ValidationResults.invalid
         return errors
 
-
+    def validate_admin_password(self, admin_password: str) -> Tuple [bool, str]:
+        return (False, "The minimum lenght is 8") if admin_password<8 else (True, "Password valid")
 #-------------------------------  set  ------------------------------
     #purchase date
     def set_date(self, user: Dict[str, Any]):
@@ -220,12 +221,13 @@ class Controller:
         except (PermissionError, OSError, UnicodeDecodeError):
             return False
        
-    def check_admin_pin(self, admin_pin: str)-> bool:
+    def check_admin_credentials(self, admin_pin: str, username: str)-> bool:
         with self._repository as connection:
-            password_hashed=connection.get_hashed_admin_password()
-
-        is_password_correct=bcrypt.checkpw(admin_pin.encode(), password_hashed)
-        return is_password_correct
+            password_hashed=connection.get_hashed_admin_password(username)
+        if password_hashed:
+            is_password_correct=bcrypt.checkpw(admin_pin.encode(), password_hashed[0])
+            return (True, "Success") if is_password_correct else (False, "Wrong Password")
+        else: return (None, "User not found")
 
     def delete_all_users(self)-> bool:
         with self._repository as connection:
