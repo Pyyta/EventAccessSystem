@@ -119,7 +119,7 @@ class EmailService:
             email_state = self.email_connection_and_sending()
             return email_state
         else: return ticket_attached
-        
+  
     def admin_password_reset(self, admin_email, reset_pin):
         self.email["From"]="noreply.nynya@gmail.com"
         self.email["To"] = admin_email

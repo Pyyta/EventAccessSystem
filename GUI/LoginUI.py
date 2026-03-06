@@ -23,6 +23,62 @@ class LoginUI:
                                       width= 560,
                                       height= 500,
                                       fg_color="#034040",
-                                      corner_radius= 41
                                       )
-        login_main_frame.place(x= 353, y=120)
+        login_main_frame.place(relx= 0.25, rely=0.125, relheight=0.75, relwidth=0.5)
+
+        login_title = ctk.CTkLabel(master=login_main_frame,
+                                   text="LOGIN",
+                                   font=self.master.title_font,
+                                   text_color="#FFFFFF")
+        login_title.place(relx=0.1, rely=0.05, relwidth=0.8)
+        self.username_field= ctk.CTkEntry(master= login_main_frame,
+                                          placeholder_text= "Usuario",
+                                          fg_color= "#FFFFFF",
+                                          placeholder_text_color="#011A1A",
+                                          text_color="#011A1A",
+                                          font=self.master.main_font
+                                          )
+        self.username_field.place(relx= 0.2, rely=0.25, relheight=0.1, relwidth=0.6)
+        self.password_field = ctk.CTkEntry(master= login_main_frame,
+                                          placeholder_text= "Contraseña",
+                                          fg_color= "#FFFFFF",
+                                          placeholder_text_color="#011A1A",
+                                          text_color="#011A1A",
+                                          font=self.master.main_font,
+                                          show="*"
+                                          )
+        self.password_field.place(relx= 0.2, rely=0.45, relheight=0.1, relwidth=0.6)
+
+        login_button = ctk.CTkButton(master=login_main_frame,
+                                     text="Entrar",
+                                     fg_color="#022A2A",
+                                     hover_color="#011A1A",
+                                     font=self.master.main_font,
+                                     text_color="#FFFFFF",
+                                     command=self.login_callback)
+        login_button.place(relx=0.05, rely=0.7, relheight=0.12, relwidth=0.4)
+
+        forgot_password_button = ctk.CTkButton(master=login_main_frame,
+                                              text="Olvide la contraseña",
+                                              fg_color="#022A2A",
+                                              hover_color="#011A1A",
+                                              font=self.master.main_font,
+                                              text_color="#FFFFFF",
+                                              command=self.forgot_password_callback)
+        forgot_password_button.place(relx=0.55, rely=0.7, relheight=0.12, relwidth=0.4)
+
+    def forgot_password_callback(self):
+        self.master.show_password_recovery()
+
+    def login_callback(self):
+        username = self.username_field.get()
+        admin_pin = self.password_field.get()
+        
+        # Calling the controller's check function
+        # result is a Tuple (bool, str) or (None, str)
+        status, message = self.master.controller.check_admin_credentials(admin_pin, username)
+        
+        if status:
+            print(f"Login successful: {message}")
+        else:
+            print(f"Login failed: {message}")

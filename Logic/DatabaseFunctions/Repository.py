@@ -11,7 +11,6 @@ class Repository:
         self.cursor = self.__conn.cursor()
         self.cursor.execute("PRAGMA foreign_keys = ON;") 
         return self
-
 # ------------------------------- table creation & seeding -----------------------------
     def create_tables(self):
         # admin credentials 
@@ -296,6 +295,9 @@ class Repository:
             "total_gains": earlier_phases + sold_at_checkout + total_accesories
         }
 
+    def aux(self):
+        self.cursor.execute("SELECT * FROM admin")
+        return self.cursor.fetchone()
 # --------------------------------- other ----------------------------------   
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.__conn:

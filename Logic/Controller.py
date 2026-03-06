@@ -10,10 +10,10 @@ from enum import Enum
 from datetime import datetime
 from typing import Dict, Optional, Any, Tuple
 
-#connecting with other filesO
-from DatabaseFunctions import Repository
-from Services import PDFCreator
-from Services import EmailService
+#connecting with other files
+from Logic.DatabaseFunctions import Repository
+from Logic.Services import PDFCreator
+from Logic.Services import EmailService
 
 class Controller:
     def __init__(self):
@@ -64,7 +64,7 @@ class Controller:
         user["token"]=secrets.token_urlsafe(16)
 
     def set_admin(self, admin_credentials: Dict[str, Any]) -> bool:
-        admin_credentials["password"] = bcrypt.hashpw(password=admin_credentials["password"].encode(), salt= bcrypt.gensalt())
+        admin_credentials["password"] = bcrypt.hashpw(password=admin_credentials["password"].encode(), salt=bcrypt.gensalt()).decode("utf-8")
         with self._repository as connection:
             state= connection.set_admin(admin_credentials)
         return state
@@ -165,7 +165,7 @@ class Controller:
         admin_temp_pin= secrets.randbelow(90000)+10000
         email_sending_status=self.send_recovery_email(admin_temp_pin)
         if email_sending_status[0]:
-            hashed_pin= bcrypt.hashpw(password= admin_temp_pin, salt= bcrypt.gensalt())
+            hashed_pin= bcrypt.hashpw(password= str(admin_temp_pin).encode(), salt= bcrypt.gensalt()).decode("utf-8")
             self.save_temp_admin_pin(hashed_pin)
             return (True, "email sent")
         else: return email_sending_status
@@ -225,7 +225,7 @@ class Controller:
         with self._repository as connection:
             password_hashed=connection.get_hashed_admin_password(username)
         if password_hashed:
-            is_password_correct=bcrypt.checkpw(admin_pin.encode(), password_hashed[0])
+            is_password_correct=bcrypt.checkpw(admin_pin.encode(), password_hashed[0].encode("utf-8"))
             return (True, "Success") if is_password_correct else (False, "Wrong Password")
         else: return (None, "User not found")
 
@@ -239,7 +239,9 @@ class Controller:
             reset_state= connection.reset_all_users()
         return reset_state
     
-
+    def aux(self):
+        with self._repository as connection:
+            return connection.aux()
 
 
 
@@ -248,22 +250,3 @@ class ValidationResults(Enum):
     invalid=1
     used=2
 
-
-def testing_controller():
-    user_1 = {
-    "document": "28654123",
-    "name": "Ricardo Jose Olarte Rincon",
-    "email": "impresionespitaa@gmail.com",
-    "age": 21,
-    "validated": 0,
-    "date": "",
-    "token": "",
-    "phase_id": 1
-}
-
-    controlador=Controller()
-    print(controlador.admin_password_recovery())
-    
-    
-
-testing_controller()
