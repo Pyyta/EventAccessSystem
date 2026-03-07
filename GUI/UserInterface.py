@@ -89,6 +89,11 @@ class UserInterface:
         from GUI import PasswordRecovery
         self.current_view = PasswordRecovery.PasswordRecovery(parent_container=self.container, master=self)
         
+    def show_main_menu(self):
+        for widget in self.container.winfo_children():
+            widget.destroy()
+        from GUI import MainMenu
+        self.current_view = MainMenu.MainMenu(parent_container=self.container, master=self)
 
     def run(self):
         self.__root.mainloop()

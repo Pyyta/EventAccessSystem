@@ -142,6 +142,7 @@ class Repository:
             (None,)
         )    
         self.__conn.commit()
+        return self.cursor.rowcount == 1
         
     def get_password_recovery_attemps(self):
         self.cursor.execute("SELECT attemps FROM admin WHERE id = 1")

@@ -53,7 +53,7 @@ class Controller:
         return errors
 
     def validate_admin_password(self, admin_password: str) -> Tuple [bool, str]:
-        return (False, "The minimum lenght is 8") if admin_password<8 else (True, "Password valid")
+        return (False, "The minimum lenght is 8") if len(admin_password)<8 and re.search(r"\s", admin_password) is None else (True, "Password valid")
 #-------------------------------  set  ------------------------------
     #purchase date
     def set_date(self, user: Dict[str, Any]):
@@ -165,7 +165,7 @@ class Controller:
         admin_temp_pin= secrets.randbelow(90000)+10000
         email_sending_status=self.send_recovery_email(admin_temp_pin)
         if email_sending_status[0]:
-            hashed_pin= bcrypt.hashpw(password= str(admin_temp_pin).encode(), salt= bcrypt.gensalt()).decode("utf-8")
+            hashed_pin= self.hash_password(str(admin_temp_pin))
             self.save_temp_admin_pin(hashed_pin)
             return (True, "email sent")
         else: return email_sending_status
@@ -175,18 +175,24 @@ class Controller:
             temp_pin=connection.get_admin_temp_pin()
         return temp_pin
     
-    def update_admin_password(self, new_password: str):
+    def hash_password(self, password: str) -> str:
+        return bcrypt.hashpw(password.encode(), salt=bcrypt.gensalt()).decode("utf-8")
+
+    def update_admin_password(self, new_password: str) -> Tuple[bool, str]:
+        password_validation=self.validate_admin_password(new_password)
+        if not password_validation[0]:
+            return password_validation
         with self._repository as connection:
-            update_state=connection.update_admin_password(new_password)
-            temp_password_state=connection.clear_admin_temp_pin()
-        return update_state and temp_password_state
+            update_state= connection.update_admin_password(self.hash_password(new_password))
+            temp_password_state= connection.clear_admin_temp_pin()
+        return (True, "Password updated") if update_state and temp_password_state else (False, "ERROR, password not updated")
     
     def check_recovery_pin(self, temp_pin_attemp: str) -> Tuple[bool, str]:
         recovery_pin= self.get_recovery_pin()
         if recovery_pin:
-            is_valid= bcrypt.checkpw(temp_pin_attemp.encode(), recovery_pin)
-            return (True, "Correct") if is_valid else (True, "Incorrect")
-        else: return (None, "ERROR, temporal pin not found")
+            is_valid= bcrypt.checkpw(temp_pin_attemp.encode(), recovery_pin[0].encode("utf-8"))
+            return (True, "Correct") if is_valid else (False, "Incorrect")
+        else: return (False, "ERROR, temporal pin not found")
 
     def send_recovery_email(self, admin_temp_pin: str) -> bool:
         admin_email=self.get_admin_email()

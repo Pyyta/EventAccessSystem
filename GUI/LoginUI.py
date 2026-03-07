@@ -67,6 +67,12 @@ class LoginUI:
                                               command=self.forgot_password_callback)
         forgot_password_button.place(relx=0.55, rely=0.7, relheight=0.12, relwidth=0.4)
 
+        self.error_label = ctk.CTkLabel(master=login_main_frame,
+                                        text="",
+                                        font=self.master.main_font,
+                                        text_color="#FF6B6B")
+        self.error_label.place(relx=0.1, rely=0.58, relwidth=0.8, relheight=0.08)
+
     def forgot_password_callback(self):
         self.master.show_password_recovery()
 
@@ -78,7 +84,10 @@ class LoginUI:
         # result is a Tuple (bool, str) or (None, str)
         status, message = self.master.controller.check_admin_credentials(admin_pin, username)
         
-        if status:
-            print(f"Login successful: {message}")
-        else:
-            print(f"Login failed: {message}")
+        if status == True:
+            self.error_label.configure(text="")
+            self.master.show_main_menu()
+        elif status == False:
+            self.error_label.configure(text="Contraseña incorrecta")
+        elif status is None:
+            self.error_label.configure(text="Usuario no encontrado")
