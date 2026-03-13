@@ -98,6 +98,19 @@ class PdfCreator:
             return state_and_exception
 
 
+    def save_ticket_to_path(self, user_data, file_path):
+        """Save the ticket PDF to a specific path chosen by the user."""
+        state_and_exception = self.build_ticket_layout(user_data)
+        if state_and_exception[0]:
+            try:
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                self.pdf.output(file_path)
+                return (True, file_path)
+            except Exception as e:
+                return (False, str(e))
+        else:
+            return state_and_exception
+
     def save_temp_ticket(self, user_data):
         self.build_ticket_layout(user_data) 
         pdf_buffer=io.BytesIO() 

@@ -117,7 +117,11 @@ class PasswordRecovery:
             self.resend_button.destroy()
             self.resend_button = None
 
-        status, message = self.master.trigger_password_recovery_email()
+        self.timer_label.configure(text="Enviando correo...")
+        self.master.trigger_password_recovery_email()
+
+    def on_recovery_email_result(self, status, message):
+        """Called by UserInterface when the background recovery email thread finishes."""
         if status:
             self.update_timer()
 

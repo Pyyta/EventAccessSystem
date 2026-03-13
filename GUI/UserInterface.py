@@ -2,6 +2,7 @@
 from pathlib import Path
 import customtkinter as ctk
 import os
+import threading
 import ctypes
 from ctypes import windll
 
@@ -53,10 +54,20 @@ class UserInterface:
         self.show_login()
         
     def trigger_password_recovery_email(self):
-        status, message = self.controller.admin_password_recovery()
+        def _send():
+            status, message = self.controller.admin_password_recovery()
+            # Schedule UI update on the main thread
+            self.container.after(0, lambda: self._on_recovery_email_sent(status, message))
+
+        thread = threading.Thread(target=_send, daemon=True)
+        thread.start()
+
+    def _on_recovery_email_sent(self, status, message):
+        """Called on the main thread after the recovery email thread finishes."""
         if status:
             self.start_recovery_timer()
-        return status, message
+        if hasattr(self, 'current_view') and hasattr(self.current_view, 'on_recovery_email_result'):
+            self.current_view.on_recovery_email_result(status, message)
 
     def start_recovery_timer(self):
         if self.recovery_timer_id is not None:

@@ -1,4 +1,6 @@
 import customtkinter as ctk
+import threading
+from tkinter import filedialog
 
 class MainMenu:
     def __init__(self, parent_container, master):
@@ -33,7 +35,8 @@ class MainMenu:
                                           hover_color=self.button_idle_color,
                                           font=self.master.main_font,
                                           corner_radius=0,
-                                          anchor="center")
+                                          anchor="center",
+                                          command=self.show_validate_view)
         self.btn_validate.place(relx=0.1, rely=0.1, relwidth=0.8, relheight=0.08)
 
         # 2. Create new entry
@@ -43,37 +46,51 @@ class MainMenu:
                                         hover_color=self.button_idle_color,
                                         font=self.master.main_font,
                                         corner_radius=0,
-                                        anchor="center")
-        self.btn_create.place(relx=0.1, rely=0.25, relwidth=0.8, relheight=0.08)
+                                        anchor="center",
+                                        command=self.show_create_entry_view)
+        self.btn_create.place(relx=0.1, rely=0.20, relwidth=0.8, relheight=0.08)
 
-        # 3. Services/Products
+        # 3. Search User
+        self.btn_search_user = ctk.CTkButton(master=self.sidebar_frame,
+                                              text="Buscar usuario",
+                                              fg_color=self.button_idle_color,
+                                              hover_color=self.button_idle_color,
+                                              font=self.master.main_font,
+                                              corner_radius=0,
+                                              anchor="center",
+                                              command=self.show_search_user_view)
+        self.btn_search_user.place(relx=0.1, rely=0.32, relwidth=0.8, relheight=0.08)
+
         self.btn_services = ctk.CTkButton(master=self.sidebar_frame,
                                             text="Servicios/Productos",
                                             fg_color=self.button_idle_color,
                                             hover_color=self.button_idle_color,
                                             font=self.master.main_font,
                                             corner_radius=0,
-                                            anchor="center")
-        self.btn_services.place(relx=0.1, rely=0.40, relwidth=0.8, relheight=0.08)
+                                            anchor="center",
+                                            command=self.show_services_view)
+        self.btn_services.place(relx=0.1, rely=0.44, relwidth=0.8, relheight=0.08)
 
-        # 4. View Registry
+        # 5. View Registry
         self.btn_registry = ctk.CTkButton(master=self.sidebar_frame,
                                            text="Ver Registro",
                                            fg_color=self.button_idle_color,
                                            hover_color=self.button_idle_color,
                                            font=self.master.main_font,
                                            corner_radius=0,
-                                           anchor="center")
-        self.btn_registry.place(relx=0.1, rely=0.55, relwidth=0.8, relheight=0.08)
+                                           anchor="center",
+                                           command=self.show_registry_view)
+        self.btn_registry.place(relx=0.1, rely=0.56, relwidth=0.8, relheight=0.08)
 
-        # 5. View generated income
+        # 6. View generated income
         self.btn_income = ctk.CTkButton(master=self.sidebar_frame,
                                            text="Ver ingresos\ngenerados",
                                            fg_color=self.button_idle_color,
                                            hover_color=self.button_idle_color,
                                            font=self.master.main_font,
                                            corner_radius=0,
-                                           anchor="center")
+                                           anchor="center",
+                                           command=self.show_income_view)
         self.btn_income.place(relx=0.1, rely=0.80, relwidth=0.8, relheight=0.12)
 
         # --- Header ---
@@ -97,44 +114,29 @@ class MainMenu:
         # Initial View: Validate
         self.show_validate_view()
 
+    def update_sidebar_buttons(self, active_btn):
+        for btn in [self.btn_validate, self.btn_create, self.btn_search_user, self.btn_services, self.btn_registry, self.btn_income]:
+            btn.configure(fg_color=self.button_idle_color)
+        active_btn.configure(fg_color=self.button_active_color)
+
     def show_validate_view(self):
         # Clean current view
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
-        # Validation Input
-        self.validation_entry = ctk.CTkEntry(master=self.content_frame,
-                                               fg_color="#FFFFFF",
-                                               border_color="gray",
-                                               text_color="#000000",
-                                               font=self.master.main_font)
-        self.validation_entry.place(relx=0.1, rely=0.2, relwidth=0.8, relheight=0.1)
+        self.update_sidebar_buttons(self.btn_validate)
 
-        # Validation Button
-        self.submit_button = ctk.CTkButton(master=self.content_frame,
-                                            text="Validar",
-                                            fg_color=self.header_color,
-                                            hover_color=self.sidebar_color,
-                                            text_color="#FFFFFF",
-                                            font=self.master.main_font,
-                                            corner_radius=0,
-                                            command=self.validate_ticket)
-        self.submit_button.place(relx=0.15, rely=0.45, relwidth=0.3, relheight=0.08)
+        from GUI.MainMenuViews.ValidateView import ValidateView
+        self.current_view = ValidateView(parent_frame=self.content_frame, main_menu=self)
 
-    def validate_ticket(self):
-        token = self.validation_entry.get().strip()
-        if not token:
-            return
+    def show_create_entry_view(self):
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
 
-        status = self.master.controller.check_scanned_token(token)
-        
-        if status == True:
-            self.show_popup("Ticket aceptado, Bienvenido!")
-            self.validation_entry.delete(0, 'end')
-        elif status == False:
-            self.show_popup("Ticket ya validado!")
-        elif status is None:
-            self.show_popup("No encontrado")
+        self.update_sidebar_buttons(self.btn_create)
+
+        from GUI.MainMenuViews.CreateEntryView import CreateEntryView
+        self.current_view = CreateEntryView(parent_frame=self.content_frame, main_menu=self)
 
     def show_popup(self, message):
         popup = ctk.CTkToplevel(self.container)
@@ -155,3 +157,52 @@ class MainMenu:
                                hover_color=self.sidebar_color,
                                command=popup.destroy)
         btn_ok.pack(pady=(10, 20))
+
+    # ========================== Search User View ==========================
+
+    # Phase ID -> phase name mapping
+    PHASE_NAMES = {
+        1: "Fase 1",
+        2: "Fase 2",
+        3: "Taquilla",
+        4: "Invitación especial",
+    }
+
+    def show_services_view(self):
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.update_sidebar_buttons(self.btn_services)
+
+        from GUI.MainMenuViews.ServicesView import ServicesView
+        self.current_view = ServicesView(parent_frame=self.content_frame, main_menu=self)
+
+    def show_registry_view(self):
+        # Clean current view
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.update_sidebar_buttons(self.btn_registry)
+
+        from GUI.MainMenuViews.RegistryView import RegistryView
+        self.current_view = RegistryView(parent_frame=self.content_frame, main_menu=self)
+
+    def show_income_view(self):
+        # Clean current view
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.update_sidebar_buttons(self.btn_income)
+
+        from GUI.MainMenuViews.IncomeView import IncomeView
+        self.current_view = IncomeView(parent_frame=self.content_frame, main_menu=self)
+
+    def show_search_user_view(self):
+        """Display the search-by-document view."""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.update_sidebar_buttons(self.btn_search_user)
+
+        from GUI.MainMenuViews.SearchUserView import SearchUserView
+        self.current_view = SearchUserView(parent_frame=self.content_frame, main_menu=self)

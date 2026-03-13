@@ -218,7 +218,7 @@ class Repository:
         
     def search_user(self, document):
         self.cursor.execute(
-            "SELECT id, document, name, age, validated, date, token, phase_id FROM Users WHERE document=(?)",
+            "SELECT id, document, name, email, age, validated, date, token, phase_id FROM Users WHERE document=(?)",
             (document,)
         )
         return self.cursor.fetchone()

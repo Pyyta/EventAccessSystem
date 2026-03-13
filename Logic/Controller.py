@@ -128,6 +128,10 @@ class Controller:
         state_and_path = self._pdfcreator.save_ticket_permanently(user)
         return state_and_path
 
+    def save_ticket_to_path(self, user: Dict[str], file_path: str) -> Tuple[bool, str]:
+        state_and_path = self._pdfcreator.save_ticket_to_path(user, file_path)
+        return state_and_path
+
     def check_scanned_token(self, token: str) -> bool:
         with self._repository as connection:
             is_valid=connection.validate_user(token)
@@ -206,7 +210,7 @@ class Controller:
 
 #------------------------------- general transactions ------------------------------
 
-    def export_all_users(self) -> bool:
+    def export_all_users(self, file_route: str) -> bool:
         #save all users in one variable
         with self._repository as connection:
             all_users = connection.show_all_users()
@@ -215,7 +219,6 @@ class Controller:
             return None
         
         try:
-            file_route="data.csv"
             with open(file_route, "w", newline="", encoding="utf-8") as csv_connection:
                 csv_cursor=csv.writer(csv_connection, delimiter=";")
                 #titles
