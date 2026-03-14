@@ -1,12 +1,26 @@
 # Repository: Handles the database
 
-# calls to libraries
 import sqlite3 as sq
 import os
+import sys
+import shutil
 
 class Repository:
     def __enter__(self):
-        db_path = os.path.join(os.path.dirname(__file__), "Database.db")
+        if getattr(sys, 'frozen', False):
+            # When frozen, use the executable's directory
+            base_path = os.path.dirname(sys.executable)
+            db_path = os.path.join(base_path, "Database.db")
+            
+            # If the DB doesn't exist next to the exe, extract it from PyInstaller's Temp folder
+            if not os.path.exists(db_path):
+                bundled_db = os.path.join(sys._MEIPASS, "Logic", "DatabaseFunctions", "Database.db")
+                if os.path.exists(bundled_db):
+                    shutil.copy2(bundled_db, db_path)
+        else:
+            base_path = os.path.dirname(__file__)
+            db_path = os.path.join(base_path, "Database.db")
+
         self.__conn = sq.connect(db_path)
         self.cursor = self.__conn.cursor()
         self.cursor.execute("PRAGMA foreign_keys = ON;") 

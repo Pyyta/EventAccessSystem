@@ -29,8 +29,13 @@ class PdfCreator:
             
     def pdf_setter(self):
         self.pdf.add_page()
+        import sys
+        
         #setting the font location
-        self.dir_location= Path(__file__).resolve().parents[2]
+        if getattr(sys, 'frozen', False):
+            self.dir_location = sys._MEIPASS
+        else:
+            self.dir_location = Path(__file__).resolve().parents[2]
         
         font_location=os.path.join(
                                     self.dir_location,
@@ -78,17 +83,23 @@ class PdfCreator:
             return state_and_buffer
     
     def save_ticket_permanently(self, user_data):
+        import sys
         state_and_exception= self.build_ticket_layout(user_data)
         if state_and_exception[0]:
-            permanent_ticket_path=os.path.join(self.dir_location,
+            if getattr(sys, 'frozen', False):
+                base_output_dir = os.path.dirname(sys.executable)
+            else:
+                base_output_dir = self.dir_location
+                
+            permanent_ticket_path=os.path.join(base_output_dir,
                                         "Cache",
                                         "Saved tickets",
-                                        f"{user_data["document"]}_ticket.pdf")
+                                        f"{user_data['document']}_ticket.pdf")
             try:
                 self.pdf.output(permanent_ticket_path)
                 return (True, permanent_ticket_path)
             except PdfDirectoryNotFoundError:
-                dir_path=os.path.join(self.dir_location,
+                dir_path=os.path.join(base_output_dir,
                                         "Cache",
                                         "Saved tickets")
                 os.makedirs(name=dir_path, exist_ok=True)
@@ -119,6 +130,19 @@ class PdfCreator:
         return (True, pdf_buffer)
         
     def build_barcode(self, barcode_hash):
+        import sys
+        if getattr(sys, 'frozen', False):
+            dir_location = sys._MEIPASS
+        else:
+            dir_location = Path(__file__).resolve().parents[2]
+            
+        font_location=os.path.join(
+                                   dir_location,
+                                   "Assets",
+                                   "fonts", 
+                                   "JainiPurva-Regular.ttf"
+                                   )
+                                   
         #create the .png in buffer for faster access
         buffer=io.BytesIO()
         try:
@@ -128,9 +152,10 @@ class PdfCreator:
                                     )
         except Exception:
             return (False, "Token its empty")
-        barcode_class.write(buffer)
+            
+        options = {
+            'font_path': font_location
+        }
+        barcode_class.write(buffer, options=options)
         buffer.seek(0)
         return (True, buffer)
-
-
-

@@ -72,6 +72,16 @@ class CreateEntryView:
                                          font=self.master.main_font)
         self.correo_entry.place(relx=0.05, rely=0.40, relwidth=0.50, relheight=0.08)
 
+        self.send_email_var = ctk.BooleanVar(value=True)
+        self.chk_send_email = ctk.CTkCheckBox(master=self.parent_frame,
+                                              text="Enviar ticket por correo",
+                                              text_color="#000000",
+                                              fg_color=self.main_menu.header_color,
+                                              hover_color=self.main_menu.sidebar_color,
+                                              variable=self.send_email_var,
+                                              font=self.master.main_font)
+        self.chk_send_email.place(relx=0.05, rely=0.60, relwidth=0.45, relheight=0.08)
+
         self.btn_crear = ctk.CTkButton(master=self.parent_frame,
                                        text="Crear",
                                        fg_color=self.main_menu.header_color,
@@ -114,17 +124,26 @@ class CreateEntryView:
             self.btn_crear.configure(state="disabled")
             self.btn_crear_validar.configure(state="disabled")
 
-            # Show a loading popup while the email is being sent
-            loading_popup = self._show_loading_popup("Enviando correo...")
+            if self.send_email_var.get():
+                # Show a loading popup while the email is being sent
+                loading_popup = self._show_loading_popup("Enviando correo...")
 
-            # Send ticket to user's email in a background thread
-            def _send_email():
-                email_status = self.master.controller.send_ticket_to_email(user)
-                # Schedule the UI update back on the main thread
-                self.main_menu.container.after(0, lambda: self._on_email_sent(email_status, validate, loading_popup))
+                # Send ticket to user's email in a background thread
+                def _send_email():
+                    email_status = self.master.controller.send_ticket_to_email(user)
+                    # Schedule the UI update back on the main thread
+                    self.main_menu.container.after(0, lambda: self._on_email_sent(email_status, validate, loading_popup))
 
-            thread = threading.Thread(target=_send_email, daemon=True)
-            thread.start()
+                thread = threading.Thread(target=_send_email, daemon=True)
+                thread.start()
+            else:
+                msg = ("Entrada creada y validada exitosamente!\nSin envío de correo."
+                       if validate
+                       else "Entrada creada exitosamente!\nSin envío de correo.")
+                self.main_menu.show_popup(msg)
+                self.clear_create_entry_form()
+                self.btn_crear.configure(state="normal")
+                self.btn_crear_validar.configure(state="normal")
         else:
             error_messages = []
             for field, _status in errors.items():
@@ -152,11 +171,28 @@ class CreateEntryView:
         popup.geometry("400x200")
         popup.transient(self.main_menu.container.winfo_toplevel())
         popup.grab_set()
-        # Prevent the user from closing the loading popup
-        popup.protocol("WM_DELETE_WINDOW", lambda: None)
+
+        def _close_popup():
+            try:
+                popup.grab_release()
+                popup.destroy()
+            except Exception:
+                pass
+            self.btn_crear.configure(state="normal")
+            self.btn_crear_validar.configure(state="normal")
+
+        # Allow the user to close it to unblock the UI
+        popup.protocol("WM_DELETE_WINDOW", _close_popup)
 
         label = ctk.CTkLabel(popup, text=message, font=self.master.main_font, text_color="#FFFFFF")
         label.pack(expand=True, pady=(20, 10))
+        
+        btn_close = ctk.CTkButton(popup, text="Cerrar / Continuar en fondo", 
+                                  command=_close_popup, 
+                                  fg_color=self.main_menu.header_color, 
+                                  hover_color=self.main_menu.sidebar_color,
+                                  font=self.master.main_font)
+        btn_close.pack(pady=10)
         return popup
 
     def _on_email_sent(self, email_status, validate, loading_popup):

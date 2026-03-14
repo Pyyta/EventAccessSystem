@@ -4,10 +4,14 @@ import smtplib
 import socket
 from dotenv import load_dotenv
 import os
-
+import sys
 class EmailService:
     def __init__(self):
-        load_dotenv()
+        if getattr(sys, 'frozen', False):
+            env_path = os.path.join(sys._MEIPASS, '.env')
+        else:
+            env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+        load_dotenv(dotenv_path=env_path)
         self.email=EmailMessage()
         self.host_email= os.getenv("HOST_EMAIL")
         self.host_password= os.getenv("HOST_PASSWORD")
