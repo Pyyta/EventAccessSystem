@@ -63,12 +63,6 @@ class Controller:
     def set_token(self, user: Dict[str, Any]):
         user["token"]=secrets.token_urlsafe(16)
 
-    def set_admin(self, admin_credentials: Dict[str, Any]) -> bool:
-        admin_credentials["password"] = bcrypt.hashpw(password=admin_credentials["password"].encode(), salt=bcrypt.gensalt()).decode("utf-8")
-        with self._repository as connection:
-            state= connection.set_admin(admin_credentials)
-        return state
-   
 #-------------------------------   get  ------------------------------ 
     def get_user_by_document(self, document: str):
         with self._repository as connection:
@@ -124,10 +118,6 @@ class Controller:
             return state
         else: return state_and_path
         
-    def generate_permanent_ticket(self, user: Dict[str])-> Tuple[bool, str]:
-        state_and_path = self._pdfcreator.save_ticket_permanently(user)
-        return state_and_path
-
     def save_ticket_to_path(self, user: Dict[str], file_path: str) -> Tuple[bool, str]:
         state_and_path = self._pdfcreator.save_ticket_to_path(user, file_path)
         return state_and_path
@@ -150,20 +140,6 @@ class Controller:
         return lockers
 
 #----------------------------admin general options-----------------------------------
-
-    def get_attemps(self) -> int:
-        with self._repository as connection:
-            attemps= connection.get_password_recovery_attemps()
-        return attemps
-
-    def has_attemps(self) -> Tuple[bool, str]:
-        attemps=int(self.get_attemps())
-        return (True, f"{5-attemps} remaining ") if attemps <= 5 else (False, "no attemps remaining")
-
-    def add_attemp(self) -> bool:
-        with self._repository as connection:
-            state= connection.add_password_recovery_attemp()
-        return state
 
     def admin_password_recovery(self) -> Tuple[bool, str]:
         admin_temp_pin= secrets.randbelow(90000)+10000
@@ -243,14 +219,6 @@ class Controller:
             delete_state= connection.delete_all_users()
         return delete_state
     
-    def reset_all_users(self) -> bool:
-        with self._repository as connection:
-            reset_state= connection.reset_all_users()
-        return reset_state
-    
-    def aux(self):
-        with self._repository as connection:
-            return connection.aux()
 
 
 

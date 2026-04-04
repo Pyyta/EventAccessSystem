@@ -109,13 +109,6 @@ class Repository:
             return False
 
 # ---------------------------------------- admin ---------------------------------------
-    def update_admin(self, admin_credentials):
-        self.cursor.execute(
-            "UPDATE admin SET email = (?), password= (?) WHERE id = 1",
-            (admin_credentials["email"], admin_credentials["password"])
-        )
-        self.__conn.commit()
-        return self.cursor.rowcount == 1
 
     def set_admin(self, admin_credentials):
         self.cursor.execute(
@@ -158,29 +151,12 @@ class Repository:
         self.__conn.commit()
         return self.cursor.rowcount == 1
         
-    def get_password_recovery_attemps(self):
-        self.cursor.execute("SELECT attemps FROM admin WHERE id = 1")
-        curr_attemps = int(self.cursor.fetchone()[0])
-        return curr_attemps
-
-    def add_password_recovery_attemp(self):
-        curr_attemps = self.get_password_recovery_attemps()
-        self.cursor.execute(
-            "UPDATE admin SET attemps = (?) WHERE admin = 1",
-            (curr_attemps,)
-        )
-        return self.cursor.rowcount == 1
 
     def get_admin_email(self):
         self.cursor.execute("SELECT email FROM admin WHERE id = 1")
         return self.cursor.fetchone()
 
 # ------------------------------- general options --------------------------------   
-    def reset_all_users(self):
-        self.cursor.execute("UPDATE Users SET validated=0")
-        self.__conn.commit()
-        return self.cursor.rowcount == 1
-    
     def delete_all_users(self):
         self.cursor.execute("DELETE FROM Users")
         self.cursor.execute("DELETE FROM sqlite_sequence WHERE name = 'Users'")
@@ -310,9 +286,7 @@ class Repository:
             "total_gains": earlier_phases + sold_at_checkout + total_accesories
         }
 
-    def aux(self):
-        self.cursor.execute("SELECT * FROM admin")
-        return self.cursor.fetchone()
+
 # --------------------------------- other ----------------------------------   
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.__conn:
