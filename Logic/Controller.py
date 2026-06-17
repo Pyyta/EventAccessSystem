@@ -8,81 +8,90 @@ import secrets
 
 from enum import Enum
 from datetime import datetime
-from typing import Dict, Optional, Any, Tuple
+from typing import Dict, Optional, Any, Tuple, Union, List
 
 #connecting with other files
 from Logic.DatabaseFunctions import Repository
 from Logic.Services import PDFCreator
 from Logic.Services import EmailService
 
+
+#------------------------------ DATA STATES-------------------------------    
+class ValidationResults(Enum):
+    invalid = 1
+    used = 2
+
+
 class Controller:
     def __init__(self):
-        self._repository=Repository.Repository()
-        self._pdfcreator=PDFCreator.PdfCreator()
-        self._emailservice=EmailService.EmailService()
+        self._repository = Repository.Repository()
+        self._pdfcreator = PDFCreator.PdfCreator()
+        self._emailservice = EmailService.EmailService()
 
 #--------------------------data validater-----------------------------
 #---------------------(for the string inputs)-------------------------
 
     #checks only numbers (no commas, no symbols)
     def validate_document(self, document: str) -> bool:
-        document=document.strip()
-        
-        #checks only numbers with a len between 7 and 10
-        return re.search(r"\D", document) is None and re.match(r"^\d{7,10}$", document) is not None
+        return re.match(r"^\d{7,10}$", document.strip()) is not None
          
     #checks no numbers or symbols in that
     def validate_name(self, name: str) -> bool:
-        name= name.strip().lower()
-        return re.match(r"^[a-záéíóúÁÉÍÓÚñ\s]+$", name) is not None
+        return re.match(r"^[a-záéíóúñ\s]+$", name.strip().lower()) is not None
     
     #checks pattern -> letters/numbers + @ + letters + . + letters
     def validate_email(self, email: str) -> bool:
-        email= email.lower().strip()
-        return re.match(r"^[A-Za-z0-9._%+-ñ]+@[A-Za-z0-9.-ñ]+\.[A-Za-z]{2,}$", email) is not None
+        return re.match(r"^[a-z0-9._%+-ñ]+@[a-z0-9.-ñ]+\.[a-z]{2,}$", email.strip().lower()) is not None
 
     #calls all functions    
     def validate_all_data(self, user: Dict[str, Any]) -> Dict[str, Any]:
-        errors={}
+        errors = {}
         if not self.validate_document(user["document"]):
-            errors["document"]=ValidationResults.invalid
+            errors["document"] = ValidationResults.invalid
         if not self.validate_name(user["name"]):
-            errors["name"]=ValidationResults.invalid
+            errors["name"] = ValidationResults.invalid
         if not self.validate_email(user["email"]):
-            errors["email"]=ValidationResults.invalid
+            errors["email"] = ValidationResults.invalid
         return errors
 
-    def validate_admin_password(self, admin_password: str) -> Tuple [bool, str]:
-        return (False, "The minimum lenght is 8") if len(admin_password)<8 and re.search(r"\s", admin_password) is None else (True, "Password valid")
+    def validate_admin_password(self, admin_password: str) -> Tuple[bool, str]:
+        if len(admin_password) < 8:
+            return False, "The minimum length is 8"
+        if re.search(r"\s", admin_password) is not None:
+            return False, "Password cannot contain spaces"
+        return True, "Password valid"
+
 #-------------------------------  set  ------------------------------
     #purchase date
-    def set_date(self, user: Dict[str, Any]):
-        date=datetime.now().strftime("%d/%m/%Y")
+    def set_date(self, user: Dict[str, Any]) -> None:
+        date = datetime.now().strftime("%d/%m/%Y")
         user["date"] = date        
+
     #to barcode
-    def set_token(self, user: Dict[str, Any]):
-        user["token"]=secrets.token_urlsafe(16)
+    def set_token(self, user: Dict[str, Any]) -> None:
+        user["token"] = secrets.token_urlsafe(16)
 
 #-------------------------------   get  ------------------------------ 
-    def get_user_by_document(self, document: str):
+    def get_user_by_document(self, document: str) -> Optional[Tuple[Any, ...]]:
         with self._repository as connection:
             user = connection.search_user(document)
         return user
 
-    def get_total_gains(self) -> Dict[str]:
+    def get_total_gains(self) -> Dict[str, int]:
         with self._repository as connection:
-            gains=connection.get_gains()
+            gains = connection.get_gains()
         return gains
     
-    def get_admin_email(self) -> str:
+    def get_admin_email(self) -> Optional[str]:
         with self._repository as connection:
-            admin_email=connection.get_admin_email()
-        if admin_email: return admin_email[0]
-        else: return None
-
+            admin_email = connection.get_admin_email()
+        if admin_email: 
+            return admin_email[0]
+        else: 
+            return None
 
 #-------------------------- user transactions -----------------------------
-    def register_user(self, user: Dict[str]) -> Optional[Dict[str, Any]]:
+    def register_user(self, user: Dict[str, Any]) -> Dict[str, Any]:
         data_errors = self.validate_all_data(user)
 
         if not data_errors:
@@ -96,97 +105,102 @@ class Controller:
 
     def reset_one_user(self, document: str) -> bool:
         with self._repository as connection:
-            reset_state=connection.reset_user(document)
+            reset_state = connection.reset_user(document)
         return reset_state
     
     def delete_one_user(self, document: str) -> bool:
         with self._repository as connection:
-            delete_state=connection.delete_user(document)
+            delete_state = connection.delete_user(document)
         return delete_state
+
 #-----------------------ticket options-------------------------------------        
-    def generate_temp_ticket(self, user: Dict[str])-> Tuple[bool, str]:
+    def generate_temp_ticket(self, user: Dict[str, Any]) -> Tuple[bool, Any]:
         state_and_path = self._pdfcreator.save_temp_ticket(user)
         return state_and_path
 
-    def send_ticket_to_email(self, user: Dict[str])-> Tuple[bool, str]:
-        if not user["token"]:
-            return (False, "token not created")
+    def send_ticket_to_email(self, user: Dict[str, Any]) -> Tuple[bool, str]:
+        if not user.get("token"):
+            return False, "token not created"
 
-        state_and_path= self.generate_temp_ticket(user)
+        state_and_path = self.generate_temp_ticket(user)
         if state_and_path[0]:
-            state=self._emailservice.ticket_email_setter(user=user, ticket_buffer=state_and_path[1])
+            state = self._emailservice.ticket_email_setter(user=user, ticket_buffer=state_and_path[1])
             return state
-        else: return state_and_path
+        else: 
+            return state_and_path
         
-    def save_ticket_to_path(self, user: Dict[str], file_path: str) -> Tuple[bool, str]:
+    def save_ticket_to_path(self, user: Dict[str, Any], file_path: str) -> Tuple[bool, str]:
         state_and_path = self._pdfcreator.save_ticket_to_path(user, file_path)
         return state_and_path
 
-    def check_scanned_token(self, token: str) -> bool:
+    def check_scanned_token(self, token: str) -> Optional[Union[bool, str]]:
         with self._repository as connection:
-            is_valid=connection.validate_user(token)
+            is_valid = connection.validate_user(token)
         return is_valid
 
-
 #---------------------------asset options-------------------------------------------
-    def buy_accessory(self, asset_data: Dict[str, Any])-> bool:
+    def buy_accessory(self, asset_data: Dict[str, Any]) -> bool:
         with self._repository as connection:
-            transaction_succesfull= connection.buy_accesory(asset_data)
+            transaction_succesfull = connection.buy_accessory(asset_data)
         return transaction_succesfull
    
-    def get_lockers(self) -> Dict[str]:
+    def get_lockers(self) -> List[Tuple[str, str, str]]:
         with self._repository as connection:
-            lockers=connection.get_lockers()
+            lockers = connection.get_lockers()
         return lockers
 
 #----------------------------admin general options-----------------------------------
 
     def admin_password_recovery(self) -> Tuple[bool, str]:
-        admin_temp_pin= secrets.randbelow(90000)+10000
-        email_sending_status=self.send_recovery_email(admin_temp_pin)
-        if email_sending_status[0]:
-            hashed_pin= self.hash_password(str(admin_temp_pin))
+        admin_temp_pin = str(secrets.randbelow(90000) + 10000)
+        email_sending_status = self.send_recovery_email(admin_temp_pin)
+        if email_sending_status and email_sending_status[0]:
+            hashed_pin = self.hash_password(admin_temp_pin)
             self.save_temp_admin_pin(hashed_pin)
-            return (True, "email sent")
-        else: return email_sending_status
+            return True, "email sent"
+        else: 
+            return email_sending_status or (False, "Failed to send email")
 
-    def get_recovery_pin(self) -> bool:
+    def get_recovery_pin(self) -> Optional[Tuple[Optional[str], ...]]:
         with self._repository as connection:
-            temp_pin=connection.get_admin_temp_pin()
+            temp_pin = connection.get_admin_temp_pin()
         return temp_pin
     
     def hash_password(self, password: str) -> str:
         return bcrypt.hashpw(password.encode(), salt=bcrypt.gensalt()).decode("utf-8")
 
     def update_admin_password(self, new_password: str) -> Tuple[bool, str]:
-        password_validation=self.validate_admin_password(new_password)
+        password_validation = self.validate_admin_password(new_password)
         if not password_validation[0]:
             return password_validation
         with self._repository as connection:
-            update_state= connection.update_admin_password(self.hash_password(new_password))
-            temp_password_state= connection.clear_admin_temp_pin()
+            update_state = connection.update_admin_password(self.hash_password(new_password))
+            temp_password_state = connection.clear_admin_temp_pin()
         return (True, "Password updated") if update_state and temp_password_state else (False, "ERROR, password not updated")
     
     def check_recovery_pin(self, temp_pin_attemp: str) -> Tuple[bool, str]:
-        recovery_pin= self.get_recovery_pin()
-        if recovery_pin:
-            is_valid= bcrypt.checkpw(temp_pin_attemp.encode(), recovery_pin[0].encode("utf-8"))
+        recovery_pin = self.get_recovery_pin()
+        if recovery_pin and recovery_pin[0] is not None:
+            is_valid = bcrypt.checkpw(temp_pin_attemp.encode(), recovery_pin[0].encode("utf-8"))
             return (True, "Correct") if is_valid else (False, "Incorrect")
-        else: return (False, "ERROR, temporal pin not found")
+        else: 
+            return False, "ERROR, temporal pin not found"
 
-    def send_recovery_email(self, admin_temp_pin: str) -> bool:
-        admin_email=self.get_admin_email()
-        state=self._emailservice.admin_password_reset(admin_email, admin_temp_pin)
-        return state
+    def send_recovery_email(self, admin_temp_pin: str) -> Tuple[bool, str]:
+        admin_email = self.get_admin_email()
+        if not admin_email:
+            return False, "Admin email not found"
+        state = self._emailservice.admin_password_reset(admin_email, admin_temp_pin)
+        return state if state is not None else (False, "Email sending failed")
     
     def save_temp_admin_pin(self, temp_pin: str) -> bool:
         with self._repository as connection:
-            status= connection.save_admin_temp_pin(temp_pin)
+            status = connection.save_admin_temp_pin(temp_pin)
         return status
 
 #------------------------------- general transactions ------------------------------
 
-    def export_all_users(self, file_route: str) -> bool:
+    def export_all_users(self, file_route: str) -> Optional[bool]:
         #save all users in one variable
         with self._repository as connection:
             all_users = connection.show_all_users()
@@ -196,7 +210,7 @@ class Controller:
         
         try:
             with open(file_route, "w", newline="", encoding="utf-8") as csv_connection:
-                csv_cursor=csv.writer(csv_connection, delimiter=";")
+                csv_cursor = csv.writer(csv_connection, delimiter=";")
                 #titles
                 csv_cursor.writerow(["id", "cedula", "nombre", "correo", "edad", "validado", "fecha", "token", "fase"])
                 #data insertion
@@ -206,24 +220,16 @@ class Controller:
         except (PermissionError, OSError, UnicodeDecodeError):
             return False
        
-    def check_admin_credentials(self, admin_pin: str, username: str)-> bool:
+    def check_admin_credentials(self, admin_pin: str, username: str) -> Tuple[Optional[bool], str]:
         with self._repository as connection:
-            password_hashed=connection.get_hashed_admin_password(username)
-        if password_hashed:
-            is_password_correct=bcrypt.checkpw(admin_pin.encode(), password_hashed[0].encode("utf-8"))
+            password_hashed = connection.get_hashed_admin_password(username)
+        if password_hashed and password_hashed[0] is not None:
+            is_password_correct = bcrypt.checkpw(admin_pin.encode(), password_hashed[0].encode("utf-8"))
             return (True, "Success") if is_password_correct else (False, "Wrong Password")
-        else: return (None, "User not found")
+        else: 
+            return None, "User not found"
 
-    def delete_all_users(self)-> bool:
+    def delete_all_users(self) -> bool:
         with self._repository as connection:
-            delete_state= connection.delete_all_users()
+            delete_state = connection.delete_all_users()
         return delete_state
-    
-
-
-
-#------------------------------ DATA STATES-------------------------------    
-class ValidationResults(Enum):
-    invalid=1
-    used=2
-

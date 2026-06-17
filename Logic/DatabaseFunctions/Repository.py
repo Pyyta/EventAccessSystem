@@ -4,9 +4,15 @@ import sqlite3 as sq
 import os
 import sys
 import shutil
+from typing import Dict, Any, List, Tuple, Optional, Union
+
 
 class Repository:
-    def __enter__(self):
+    def __init__(self) -> None:
+        self.__conn: Optional[sq.Connection] = None
+        self.cursor: Optional[sq.Cursor] = None
+
+    def __enter__(self) -> "Repository":
         if getattr(sys, 'frozen', False):
             # When frozen, use the executable's directory
             base_path = os.path.dirname(sys.executable)
@@ -25,92 +31,124 @@ class Repository:
         self.cursor = self.__conn.cursor()
         self.cursor.execute("PRAGMA foreign_keys = ON;") 
         return self
+
 # ------------------------------- table creation & seeding -----------------------------
-    def create_tables(self):
+    def create_tables(self) -> bool:
+        if self.cursor is None:
+            return False
+            
         # admin credentials 
-        self.cursor.execute("""CREATE TABLE IF NOT EXISTS admin(
-                            id INTEGER NOT NULL PRIMARY KEY,
-                            username TEXT NOT NULL,
-                            email TEXT NOT NULL,
-                            password TEXT NOT NULL,
-                            temp_recovery_password TEXT,
-                            attemps INTEGER NOT NULL)""")
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admin(
+                id INTEGER NOT NULL PRIMARY KEY,
+                username TEXT NOT NULL,
+                email TEXT NOT NULL,
+                password TEXT NOT NULL,
+                temp_recovery_password TEXT,
+                attemps INTEGER NOT NULL
+            )
+        """)
+        
         # Users table
-        self.cursor.execute("""CREATE TABLE IF NOT EXISTS Users(
-                       id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                       document TEXT UNIQUE NOT NULL,
-                       name TEXT NOT NULL,
-                       email TEXT NOT NULL,
-                       age INTEGER NOT NULL,
-                       validated INTEGER NOT NULL DEFAULT 0,
-                       date TEXT NOT NULL,
-                       token TEXT UNIQUE NOT NULL,
-                       phase_id INTEGER NOT NULL,
-                       FOREIGN KEY (phase_id) REFERENCES Phases(id))""")
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Users(
+                id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                document TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                age INTEGER NOT NULL,
+                validated INTEGER NOT NULL DEFAULT 0,
+                date TEXT NOT NULL,
+                token TEXT UNIQUE NOT NULL,
+                phase_id INTEGER NOT NULL,
+                FOREIGN KEY (phase_id) REFERENCES Phases(id)
+            )
+        """)
+        
         # Phases table
-        self.cursor.execute("""CREATE TABLE IF NOT EXISTS Phases(
-                       id INTEGER NOT NULL PRIMARY KEY,
-                       phase TEXT NOT NULL,
-                       price INTEGER NOT NULL
-                       )""")
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Phases(
+                id INTEGER NOT NULL PRIMARY KEY,
+                phase TEXT NOT NULL,
+                price INTEGER NOT NULL
+            )
+        """)
 
         # Intermediate table
-        self.cursor.execute("""CREATE TABLE IF NOT EXISTS Users_Assets(
-                       id_user INTEGER NOT NULL,
-                       id_asset INTEGER NOT NULL,
-                       num_locker TEXT,
-                       PRIMARY KEY (id_user, id_asset),
-                       FOREIGN KEY (id_user) REFERENCES Users(id)
-                        ON DELETE CASCADE
-                        ON UPDATE CASCADE,
-                       FOREIGN KEY (id_asset) REFERENCES Assets(id)
-                        ON DELETE CASCADE
-                        ON UPDATE CASCADE
-                       )""")
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Users_Assets(
+                id_user INTEGER NOT NULL,
+                id_asset INTEGER NOT NULL,
+                num_locker TEXT,
+                PRIMARY KEY (id_user, id_asset),
+                FOREIGN KEY (id_user) REFERENCES Users(id)
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE,
+                FOREIGN KEY (id_asset) REFERENCES Assets(id)
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        """)
+        
         # Assets table
-        self.cursor.execute("""CREATE TABLE IF NOT EXISTS Assets(
-                       id INTEGER NOT NULL PRIMARY KEY,
-                       accesory TEXT NOT NULL,
-                       price INT NOT NULL
-                       )""")
-        self.__conn.commit()
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Assets(
+                id INTEGER NOT NULL PRIMARY KEY,
+                accesory TEXT NOT NULL,
+                price INT NOT NULL
+            )
+        """)
+        
+        if self.__conn:
+            self.__conn.commit()
         return True
 
-    def seeding_assets(self):
+    def seeding_assets(self) -> bool:
+        if self.cursor is None:
+            return False
+            
         self.cursor.execute("SELECT COUNT(*) FROM Assets")
         is_empty = self.cursor.fetchone()[0]
         
         if is_empty == 0:
-            self.cursor.execute("""INSERT INTO Assets(id, accesory, price)
-                           VALUES 
-                                (1, "Locker", 8000),
-                                (2, "Bandana", 4000)
-                                """)
-            self.__conn.commit()
+            self.cursor.execute("""
+                INSERT INTO Assets(id, accesory, price)
+                VALUES 
+                    (1, 'Locker', 8000),
+                    (2, 'Bandana', 4000)
+            """)
+            if self.__conn:
+                self.__conn.commit()
             return True
-        else:
-            return False
+        return False
            
-    def seeding_phases_table(self):
+    def seeding_phases_table(self) -> bool:
+        if self.cursor is None:
+            return False
+            
         self.cursor.execute("SELECT COUNT(*) FROM Phases")
         is_empty = self.cursor.fetchone()[0]
         
         if is_empty == 0:
-            self.cursor.execute("""INSERT INTO Phases(id, phase, price)
-                           VALUES 
-                                (1, "Fase-1", 18000),
-                                (2, "Fase-2", 22000),
-                                (3, "Taquilla", 30000),
-                                (4, "Invitacion especial", 0)
-                                """)
-            self.__conn.commit()
+            self.cursor.execute("""
+                INSERT INTO Phases(id, phase, price)
+                VALUES 
+                    (1, 'Fase-1', 18000),
+                    (2, 'Fase-2', 22000),
+                    (3, 'Taquilla', 30000),
+                    (4, 'Invitacion especial', 0)
+            """)
+            if self.__conn:
+                self.__conn.commit()
             return True
-        else: 
-            return False
+        return False
 
 # ---------------------------------------- admin ---------------------------------------
 
-    def set_admin(self, admin_credentials):
+    def set_admin(self, admin_credentials: Dict[str, str]) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
+            
         self.cursor.execute(
             "INSERT INTO admin(username, email, password, attemps) VALUES (?, ?, ?, ?)",
             (admin_credentials["username"], admin_credentials["email"], admin_credentials["password"], 0)
@@ -118,12 +156,15 @@ class Repository:
         self.__conn.commit()
         return self.cursor.rowcount == 1
             
-    def get_hashed_admin_password(self, username):      
+    def get_hashed_admin_password(self, username: str) -> Optional[Tuple[str, ...]]:      
+        if self.cursor is None:
+            return None
         self.cursor.execute("SELECT password FROM admin WHERE username = (?) ", (username, ))
         return self.cursor.fetchone()
-
     
-    def save_admin_temp_pin(self, temp_pin):
+    def save_admin_temp_pin(self, temp_pin: str) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
         self.cursor.execute(
             "UPDATE admin SET temp_recovery_password = (?) WHERE id = 1 ",
             (temp_pin,)
@@ -131,11 +172,15 @@ class Repository:
         self.__conn.commit()
         return self.cursor.rowcount == 1
     
-    def get_admin_temp_pin(self):
+    def get_admin_temp_pin(self) -> Optional[Tuple[Optional[str], ...]]:
+        if self.cursor is None:
+            return None
         self.cursor.execute("SELECT temp_recovery_password FROM admin WHERE id = 1")   
         return self.cursor.fetchone()
 
-    def update_admin_password(self, new_password):
+    def update_admin_password(self, new_password: str) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
         self.cursor.execute(
             "UPDATE admin SET password = (?) WHERE id = 1 ",
             (new_password,)
@@ -143,21 +188,27 @@ class Repository:
         self.__conn.commit()
         return self.cursor.rowcount == 1
 
-    def clear_admin_temp_pin(self):
+    def clear_admin_temp_pin(self) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
         self.cursor.execute(
             "UPDATE admin SET temp_recovery_password = (?) WHERE id = 1 ",
             (None,)
         )    
         self.__conn.commit()
         return self.cursor.rowcount == 1
-        
 
-    def get_admin_email(self):
+    def get_admin_email(self) -> Optional[Tuple[str, ...]]:
+        if self.cursor is None:
+            return None
         self.cursor.execute("SELECT email FROM admin WHERE id = 1")
         return self.cursor.fetchone()
 
 # ------------------------------- general options --------------------------------   
-    def delete_all_users(self):
+    def delete_all_users(self) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
+            
         self.cursor.execute("DELETE FROM Users")
         self.cursor.execute("DELETE FROM sqlite_sequence WHERE name = 'Users'")
         self.__conn.commit()
@@ -166,12 +217,16 @@ class Repository:
         users_existing = self.cursor.fetchone()[0]
         return users_existing == 0
 
-    def show_all_users(self):
+    def show_all_users(self) -> List[Tuple[Any, ...]]:
+        if self.cursor is None:
+            return []
         self.cursor.execute("SELECT * FROM Users")
         return self.cursor.fetchall()
 
 # ------------------------------- user options --------------------------------  
-    def delete_user(self, document):
+    def delete_user(self, document: str) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
         self.cursor.execute(
             "DELETE FROM Users WHERE document = ?",
             (document,)
@@ -179,7 +234,9 @@ class Repository:
         self.__conn.commit()
         return self.cursor.rowcount == 1
 
-    def reset_user(self, document):
+    def reset_user(self, document: str) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
         self.cursor.execute(
             "UPDATE Users SET validated = 0 WHERE document = (?)",
             (document,)
@@ -188,32 +245,42 @@ class Repository:
         return self.cursor.rowcount == 1
 
 # --------------------------------- user transactions ----------------------------------
-    def insert_user(self, data):
+    def insert_user(self, data: Dict[str, Any]) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
         try:
-            self.cursor.execute("""INSERT INTO Users(document, name, email, age, validated, date, token, phase_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", 
-                            (data["document"], 
-                            data["name"], 
-                            data["email"], 
-                            data["age"], 
-                            data["validated"], 
-                            data["date"], 
-                            data["token"],
-                            data["phase_id"]))
+            self.cursor.execute("""
+                INSERT INTO Users(document, name, email, age, validated, date, token, phase_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data["document"], 
+                data["name"], 
+                data["email"], 
+                data["age"], 
+                data["validated"], 
+                data["date"], 
+                data["token"],
+                data["phase_id"]
+            ))
             self.__conn.commit()
             return True
         except sq.IntegrityError:
             self.__conn.rollback()
             return False
         
-    def search_user(self, document):
+    def search_user(self, document: str) -> Optional[Tuple[Any, ...]]:
+        if self.cursor is None:
+            return None
         self.cursor.execute(
             "SELECT id, document, name, email, age, validated, date, token, phase_id FROM Users WHERE document=(?)",
             (document,)
         )
         return self.cursor.fetchone()
 
-    def validate_user(self, scanned_token):
+    def validate_user(self, scanned_token: str) -> Optional[Union[bool, str]]:
+        if self.cursor is None or not self.__conn:
+            return None
+            
         self.cursor.execute(
             "SELECT validated, name FROM Users WHERE token=(?)",
             (scanned_token,)
@@ -234,63 +301,84 @@ class Repository:
         return False
 
 # --------------------------------- buying transactions ----------------------------------
-    def buy_accesory(self, data_accesories):
-        user_document = data_accesories["document"]
+    def buy_accessory(self, data_accessories: Dict[str, Any]) -> bool:
+        if self.cursor is None or not self.__conn:
+            return False
+            
+        user_document = data_accessories["document"]
         user_full_data = self.search_user(user_document)
         
         if user_full_data:
-            self.cursor.execute("""INSERT INTO Users_Assets (id_user, id_asset, num_locker)
-                                VALUES (?, ?, ?)""",
-                                (user_full_data[0],
-                                 data_accesories["id_asset"],
-                                 data_accesories["num_locker"]))
+            self.cursor.execute("""
+                INSERT INTO Users_Assets (id_user, id_asset, num_locker)
+                VALUES (?, ?, ?)
+            """, (
+                user_full_data[0],
+                data_accessories["id_asset"],
+                data_accessories["num_locker"]
+            ))
             self.__conn.commit()
             return True
-        else:
-            return False
+        return False
 
-    def get_lockers(self):
-        self.cursor.execute("""SELECT Users.document, name, num_locker
-                       FROM Users
-                       JOIN Users_Assets
-                       ON Users.id = Users_Assets.id_user
-                       WHERE num_locker <> '' """)
+    def get_lockers(self) -> List[Tuple[str, str, str]]:
+        if self.cursor is None:
+            return []
+            
+        self.cursor.execute("""
+            SELECT Users.document, Users.name, Users_Assets.num_locker
+            FROM Users
+            JOIN Users_Assets
+              ON Users.id = Users_Assets.id_user
+            WHERE Users_Assets.num_locker <> ''
+        """)
         return self.cursor.fetchall()
                                                                         
-    def get_gains(self):
-        self.cursor.execute("""SELECT SUM(price)
-                       FROM Users
-                       JOIN Phases
-                        ON Users.phase_id = Phases.id 
-                        WHERE phase_id <> 3 """)
+    def get_gains(self) -> Dict[str, int]:
+        if self.cursor is None:
+            return {
+                "earlier phases": 0,
+                "sold at checkout": 0,
+                "total accesories": 0,
+                "total_gains": 0
+            }
+            
+        self.cursor.execute("""
+            SELECT SUM(Phases.price)
+            FROM Users
+            JOIN Phases
+              ON Users.phase_id = Phases.id 
+            WHERE Users.phase_id <> 3
+        """)
         earlier_phases = self.cursor.fetchone()[0] or 0
 
-        self.cursor.execute("""SELECT SUM(price)
-                       FROM Users
-                       JOIN Phases
-                        ON Users.phase_id = Phases.id 
-                        WHERE phase_id = 3""")      
+        self.cursor.execute("""
+            SELECT SUM(Phases.price)
+            FROM Users
+            JOIN Phases
+              ON Users.phase_id = Phases.id 
+            WHERE Users.phase_id = 3
+        """)      
         sold_at_checkout = self.cursor.fetchone()[0] or 0
 
-        self.cursor.execute("""SELECT SUM(price)
-                        FROM Assets as Ast
-                        JOIN Users_Assets as Ua
-                        ON Ast.id = Ua.id_asset
-                        """)
-        total_accesories = self.cursor.fetchone()[0] or 0
+        self.cursor.execute("""
+            SELECT SUM(Ast.price)
+            FROM Assets as Ast
+            JOIN Users_Assets as Ua
+              ON Ast.id = Ua.id_asset
+        """)
+        total_accessories = self.cursor.fetchone()[0] or 0
 
         return {
             "earlier phases": earlier_phases,
             "sold at checkout": sold_at_checkout,
-            "total accesories": total_accesories,
-            "total_gains": earlier_phases + sold_at_checkout + total_accesories
+            "total accesories": total_accessories,
+            "total_gains": earlier_phases + sold_at_checkout + total_accessories
         }
 
-
 # --------------------------------- other ----------------------------------   
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         if self.__conn:
             if exc_type:
                 self.__conn.rollback()    
             self.__conn.close()
-
